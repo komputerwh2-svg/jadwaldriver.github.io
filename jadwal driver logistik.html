@@ -1,0 +1,355 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Jadwal Driver Logistik</title>
+    <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@300;400;600;700&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css">
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://cdn.sheetjs.com/xlsx-latest/package/dist/xlsx.full.min.js"></script>
+    <style>
+        body { font-family: 'Poppins', sans-serif; background-color: #f1f5f9; overflow-x: hidden; }
+        
+        /* Bottom Navigation Styling */
+        .bottom-nav {
+            position: fixed;
+            bottom: 0;
+            width: 100%;
+            background-color: white;
+            display: flex;
+            justify-content: space-around;
+            align-items: center;
+            padding: 15px 10px 25px 10px;
+            box-shadow: 0 -10px 25px rgba(0,0,0,0.05);
+            border-radius: 30px 30px 0 0;
+            z-index: 50;
+        }
+        .nav-item { display: flex; flex-direction: column; align-items: center; color: #94a3b8; width: 20%; cursor: pointer; transition: all 0.3s; }
+        .nav-item.active { color: #2563eb; }
+        .nav-item i { font-size: 20px; margin-bottom: 4px; }
+        .nav-item span { font-size: 9px; font-weight: 700; text-transform: uppercase; }
+
+        /* Floating Action Button */
+        .fab-container { position: fixed; bottom: 45px; left: 50%; transform: translateX(-50%); z-index: 60; display: flex; flex-direction: column; align-items: center; }
+        .fab-button { width: 60px; height: 60px; background: linear-gradient(135deg, #3b82f6 0%, #1d4ed8 100%); border-radius: 50%; display: flex; justify-content: center; align-items: center; color: white; font-size: 24px; box-shadow: 0 10px 20px rgba(37, 99, 235, 0.4); border: 4px solid #f1f5f9; }
+
+        /* Sections & Sub-Page Logic */
+        .content-section { display: none; padding: 20px; }
+        .content-section.active { display: block; animation: fadeIn 0.4s ease; }
+        
+        .sub-page { display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: #f8fafc; z-index: 100; overflow-y: auto; }
+        .sub-page.active { display: block; animation: slideIn 0.3s ease-out; }
+        
+        @keyframes fadeIn { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: translateY(0); } }
+        @keyframes slideIn { from { transform: translateX(100%); } to { transform: translateX(0); } }
+
+        /* Kas Saku Menu Cards */
+        .menu-card { background: white; border-radius: 20px; padding: 15px 20px; margin-bottom: 12px; display: flex; align-items: center; box-shadow: 0 4px 6px -1px rgba(0,0,0,0.05); border: 1px solid #f1f5f9; cursor: pointer; }
+        .menu-card:active { transform: scale(0.98); }
+        .icon-circle { width: 45px; height: 45px; border-radius: 15px; display: flex; align-items: center; justify-content: center; margin-right: 15px; font-size: 18px; }
+
+        /* Update History Timeline */
+        .timeline-item { border-left: 2px dashed #e2e8f0; padding-left: 20px; margin-left: 10px; position: relative; margin-bottom: 20px; }
+        .timeline-item::before { content: ''; position: absolute; left: -7px; top: 0; width: 12px; height: 12px; background: #2563eb; border-radius: 50%; }
+    
+        /* Update CSS untuk Gaya Kartu Terbungkus ala Kas Saku */
+        .history-container {
+            max-height: 320px; /* Sedikit disesuaikan agar proporsional */
+            overflow-y: auto;
+            padding: 25px; /* Padding dalam lebih longgar */
+            margin-top: 15px;
+            
+            /* GAYA VISUAL BARU (Sama seperti kotak Upload) */
+            background-color: #ffffff; /* Putih bersih */
+            border-radius: 24px; /* Sudut melengkung besar */
+            border: 2px dashed #e2e8f0; /* Border putus-putus */
+            box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.05); /* Bayangan lembut */
+            
+            /* Navigasi Scrollbar tetap sama */
+            scrollbar-width: thin;
+        }
+
+        /* Custom scrollbar tetap tipis agar tidak mengganggu */
+        .history-container::-webkit-scrollbar {
+            width: 4px;
+        }
+        .history-container::-webkit-scrollbar-thumb {
+            background-color: #e2e8f0;
+            border-radius: 10px;
+        }
+
+    </style>
+</head>
+<body class="pb-28">
+
+    <div id="main-header" class="bg-gradient-to-br from-blue-600 to-blue-800 text-white p-6 pb-4 rounded-b-[40px] shadow-lg relative">
+        <div class="absolute top-6 right-6 bg-white/20 backdrop-blur-md px-3 py-1 rounded-full text-[10px] font-bold border border-white/30">v0.1.0</div>
+        <h2 class="text-[10px] font-bold tracking-[0.2em] opacity-80 uppercase">Logistics Management System</h2>
+        <h1 class="text-xl font-bold">JADWAL DRIVER LOGISTIK</h1>
+        <p class="text-[9px] opacity-70 italic mb-4">Developed by ARiA | Powered by Gemini</p>
+        
+        <div class="inline-flex items-center gap-2 bg-black/20 px-3 py-2 rounded-xl border border-white/10">
+            <i class="fa-regular fa-calendar-check text-blue-200 text-xs"></i>
+            <div id="live-clock" class="text-[11px] font-light">Memuat Waktu...</div>
+        </div>
+    </div>
+
+    <main class="-mt-3 px-4 relative z-20">
+        
+        <section id="status-content" class="content-section">
+            <div id="selected-detail" class="bg-white rounded-3xl p-6 shadow-sm border border-slate-100">
+                <div class="text-center py-10">
+                    <div class="w-16 h-16 bg-slate-50 rounded-full flex items-center justify-center mx-auto mb-4">
+                        <i class="fa-solid fa-truck-moving text-2xl text-slate-200"></i>
+                    </div>
+                    <p class="text-[11px] text-slate-400 italic">Pilih jadwal di menu samping untuk melihat detail pengiriman.</p>
+                </div>
+            </div>
+        </section>
+
+        <section id="jadwal-content" class="content-section active">
+            <h3 class="font-bold text-slate-800 text-[11px] mb-4 uppercase tracking-widest px-2">Daftar Jadwal Tersedia</h3>
+            <div id="list-jadwal" class="space-y-3">
+                <div class="text-center py-10 text-slate-400 text-[11px] italic">Memuat daftar jadwal...</div>
+            </div>
+        </section>
+
+        <section id="laporan-content" class="content-section text-center py-10">
+            <i class="fa-solid fa-file-invoice text-5xl text-slate-100 mb-4"></i>
+            <h3 class="font-bold text-slate-800 uppercase text-xs">Laporan Driver</h3>
+            <p class="text-[11px] text-slate-400 mt-2 italic">Sedang dalam pengembangan.</p>
+        </section>
+
+        <section id="setelan-content" class="content-section">
+            <h3 class="font-bold text-slate-800 text-[11px] mb-4 uppercase tracking-widest px-2">Pengaturan</h3>
+            
+            <div class="menu-card">
+                <div class="icon-circle bg-orange-100 text-orange-500"><i class="fa-solid fa-database"></i></div>
+                <div class="flex-grow">
+                    <h4 class="text-sm font-bold text-slate-800 uppercase">Database</h4>
+                    <p class="text-[10px] text-slate-400">Sync & Backup Data Cloud</p>
+                </div>
+                <i class="fa-solid fa-chevron-right text-slate-200 text-xs"></i>
+            </div>
+
+            <div class="menu-card" onclick="openSubPage('tentang-page')">
+                <div class="icon-circle bg-blue-100 text-blue-500"><i class="fa-solid fa-circle-info"></i></div>
+                <div class="flex-grow">
+                    <h4 class="text-sm font-bold text-slate-800 uppercase">Tentang Aplikasi</h4>
+                    <p class="text-[10px] text-slate-400">Versi & Log Pembaruan</p>
+                </div>
+                <i class="fa-solid fa-chevron-right text-slate-200 text-xs"></i>
+            </div>
+
+            <div class="menu-card mt-10 border-red-50" onclick="alert('Keluar...')">
+                <div class="icon-circle bg-red-50 text-red-500"><i class="fa-solid fa-power-off"></i></div>
+                <div class="flex-grow"><h4 class="text-sm font-bold text-red-500 uppercase">Keluar Sesi</h4></div>
+            </div>
+        </section>
+
+        <section id="upload-content" class="content-section">
+            <div class="bg-white rounded-3xl p-6 shadow-xl border-2 border-dashed border-blue-200 text-center">
+                <h3 class="font-bold mb-4 text-slate-700">Upload File .ODS</h3>
+                <input type="file" id="fileInput" accept=".ods" class="hidden" onchange="updateFileName()">
+                <label for="fileInput" class="bg-slate-50 px-6 py-8 rounded-2xl block border border-slate-100 cursor-pointer">
+                    <i class="fa-solid fa-cloud-arrow-up text-3xl text-blue-500 mb-2"></i>
+                    <p id="fileName" class="text-[11px] text-slate-500 font-medium">Pilih file jadwal harian</p>
+                </label>
+                <button onclick="prosesUpload()" class="w-full bg-blue-600 text-white mt-5 py-3.5 rounded-xl font-bold shadow-lg">SIMPAN KE DATABASE</button>
+                <p id="upload-status" class="mt-3 text-[10px] font-bold text-blue-600 uppercase"></p>
+            </div>
+        </section>
+    </main>
+
+    <div id="tentang-page" class="sub-page">
+        <div class="bg-white p-4 flex items-center gap-4 sticky top-0 shadow-sm z-50">
+            <button onclick="closeSubPage('tentang-page')" class="w-10 h-10 flex items-center justify-center text-slate-600"><i class="fa-solid fa-arrow-left"></i></button>
+            <h2 class="font-bold text-slate-800 uppercase text-xs tracking-widest">Tentang Aplikasi</h2>
+        </div>
+
+        <div class="p-8 text-center">
+            <div class="w-24 h-24 bg-blue-50 rounded-full flex items-center justify-center mx-auto mb-4 border-4 border-white shadow-lg">
+                <i class="fa-solid fa-truck-moving text-4xl text-blue-600"></i>
+            </div>
+            <h3 class="text-xl font-bold text-slate-800">JADWAL DRIVER LOGISTIK</h3>
+            <p class="text-[10px] text-blue-600 font-bold tracking-[0.3em] uppercase">Logistics Management System</p>
+            
+            <div class="mt-10 space-y-3 text-left">
+                <div class="flex justify-between items-center bg-white p-4 rounded-2xl border border-slate-100">
+                    <span class="text-[11px] text-slate-600 font-bold">Versi</span>
+                    <span class="text-[11px] bg-blue-100 text-blue-700 px-3 py-1 rounded-full font-bold">v0.1.0</span>
+                </div>
+                <div class="flex justify-between items-center bg-white p-4 rounded-2xl border border-slate-100">
+                    <span class="text-[11px] text-slate-600 font-bold">Update Terakhir</span>
+                    <span class="text-[11px] text-slate-800 font-bold">11 Mei 2026</span>
+                </div>
+            </div>
+
+            <div class="mt-10 text-left">
+                <h4 class="text-[10px] font-bold text-slate-600 uppercase tracking-widest mb-2 flex items-center gap-2">
+                    <i class="fa-solid fa-clock-rotate-left"></i> Riwayat Pembaruan
+                </h4>
+                
+                <div class="history-container">
+                    
+                    <div class="timeline-item">
+                        <span class="text-[11px] font-bold text-red-600">v0.1.0 | 11 Mei 2026 (Terbaru)</span>
+                        <ul class="text-[10px] text-slate-500 mt-1 list-disc ml-4 space-y-1">
+                            <li>Metode koding "Part" untuk efisiensi sistem.</li>
+                            <li>Implementasi Scroll Area pada Riwayat Pembaruan.</li>
+                            <li>Navigasi Tab Sinkron (Default: Jadwal).</li>
+                        </ul>
+                    </div>
+
+                    <div class="timeline-item">
+                        <span class="text-[11px] font-bold text-blue-500">v0.0.8 | 11 Mei 2026</span>
+                        <ul class="text-[10px] text-slate-500 mt-1 list-disc ml-4 space-y-1">
+                            <li>Perbaikan UI header dan padding biru.</li>
+                            <li>Implementasi ikon aplikasi fa-truck-moving.</li>
+                        </ul>
+                    </div>
+
+                    <div class="timeline-item">
+                        <span class="text-[11px] font-bold text-blue-500">v0.0.5 | 11 Mei 2026</span>
+                        <p class="text-[10px] text-slate-400 mt-1 italic">Prototipe dasar aplikasi & parser file .ods melalui SheetJS.</p>
+                    </div>
+
+                    </div>
+            </div>
+
+            <div class="mt-16 pt-10 border-t border-slate-200">
+                <p class="text-[9px] text-slate-400 font-bold uppercase tracking-[0.2em] mb-4 text-center">Developed & Powered By</p>
+                <div class="flex justify-center items-center gap-5 grayscale opacity-80">
+                    <div class="text-center"><i class="fa-solid fa-microchip text-2xl"></i><p class="text-[8px] font-bold mt-1">ARiA DEV STUDIO</p></div>
+                    <div class="text-center"><i class="fa-solid fa-robot text-2xl"></i><p class="text-[8px] font-bold mt-1">GEMINI AI</p></div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div class="fab-container">
+        <div id="hint-upload" class="bg-slate-800 text-white text-[9px] px-3 py-1 rounded-full font-bold shadow-sm animate-bounce mb-2">UPLOAD FILE JADWAL</div>
+        <button onclick="handleFabClick(this)" class="fab-button"><i class="fa-solid fa-plus"></i></button>
+    </div>
+
+    <nav class="bottom-nav">
+        <div onclick="switchTab('status', this)" class="nav-item"><i class="fa-solid fa-chart-pie"></i><span>Status</span></div>
+        <div onclick="switchTab('jadwal', this)" class="nav-item active"><i class="fa-solid fa-calendar-day"></i><span>Jadwal</span></div>
+        <div class="w-16"></div>
+        <div onclick="switchTab('laporan', this)" class="nav-item"><i class="fa-solid fa-file-invoice"></i><span>Laporan</span></div>
+        <div onclick="switchTab('setelan', this)" class="nav-item"><i class="fa-solid fa-sliders"></i><span>Setelan</span></div>
+    </nav>
+
+    <script>
+        window.onload = function() {
+            updateClock();
+            const navJadwal = document.querySelectorAll('.nav-item')[1];
+            switchTab('jadwal', navJadwal); // Memastikan tab aktif biru sinkron
+        };
+
+        function updateClock() {
+            const now = new Date();
+            const options = { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric', hour: '2-digit', minute: '2-digit', second: '2-digit' };
+            document.getElementById('live-clock').textContent = now.toLocaleDateString('id-ID', options);
+        }
+        setInterval(updateClock, 1000);
+
+        function switchTab(tabId, el) {
+            document.querySelectorAll('.content-section').forEach(s => s.classList.remove('active'));
+            document.querySelectorAll('.nav-item').forEach(n => n.classList.remove('active'));
+            document.getElementById(tabId + '-content').classList.add('active');
+            if (el && el.classList.contains('nav-item')) el.classList.add('active');
+            if (tabId === 'jadwal') loadJadwal();
+        }
+
+        function openSubPage(pageId) {
+            document.getElementById(pageId).classList.add('active');
+        }
+
+        function closeSubPage(pageId) {
+            document.getElementById(pageId).classList.remove('active');
+        }
+
+        function handleFabClick(el) {
+            document.getElementById('hint-upload').style.display = 'none';
+            switchTab('upload', el);
+        }
+
+        function updateFileName() {
+            const input = document.getElementById('fileInput');
+            document.getElementById('fileName').innerText = input.files[0].name;
+        }
+
+        function prosesUpload() {
+            const input = document.getElementById('fileInput');
+            const status = document.getElementById('upload-status');
+            if (!input.files[0]) return alert("Pilih file!");
+            status.innerText = "⏳ Memproses...";
+            const reader = new FileReader();
+            reader.onload = function(e) {
+                const data = new Uint8Array(e.target.result);
+                const wb = XLSX.read(data, {type: 'array'});
+                const ws = wb.Sheets[wb.SheetNames[0]];
+                const json = XLSX.utils.sheet_to_json(ws, {header: "A", range: 6});
+                const tgl = ws['E5'] ? ws['E5'].v : "Update Baru";
+                const cleanData = json.map(r => ({ ekspedisi: r['B'], kota: r['F'], driver: r['G'] })).filter(i => i.driver);
+                google.script.run.withSuccessHandler(res => {
+                    status.innerText = "✅ " + res;
+                    input.value = "";
+                    setTimeout(() => switchTab('jadwal', document.querySelectorAll('.nav-item')[1]), 1500);
+                }).simpanKeJadwal(cleanData, tgl);
+            };
+            reader.readAsArrayBuffer(input.files[0]);
+        }
+
+        function loadJadwal() {
+            const container = document.getElementById('list-jadwal');
+            google.script.run.withSuccessHandler(data => {
+                if(!data || data.length === 0) {
+                    container.innerHTML = '<div class="text-center py-10 text-[11px] italic text-slate-400">Database kosong.</div>';
+                    return;
+                }
+                const uniqueJadwal = [...new Set(data.map(item => item.tanggal))];
+                container.innerHTML = uniqueJadwal.map(tgl => `
+                    <div class="menu-card items-center">
+                        <div class="icon-circle bg-blue-50 text-blue-600"><i class="fa-solid fa-calendar-day"></i></div>
+                        <div class="flex-grow">
+                            <p class="text-[8px] text-slate-400 font-bold uppercase">Tanggal Jadwal</p>
+                            <h4 class="font-bold text-slate-800 text-xs uppercase">${tgl}</h4>
+                        </div>
+                        <button onclick="pilihJadwal('${tgl}')" class="bg-blue-600 text-white text-[9px] px-4 py-2 rounded-xl font-bold shadow-md">PILIH</button>
+                    </div>
+                `).join('');
+            }).getJadwalData();
+        }
+
+        function pilihJadwal(tanggal) {
+            const statusContainer = document.getElementById('selected-detail');
+            statusContainer.innerHTML = '<div class="text-center py-10 text-[11px] italic text-slate-400">Menyusun detail...</div>';
+            switchTab('status', document.querySelectorAll('.nav-item')[0]);
+            google.script.run.withSuccessHandler(data => {
+                const filteredData = data.filter(item => item.tanggal === tanggal);
+                statusContainer.innerHTML = `
+                    <div class="mb-4 pb-4 border-b border-dashed border-slate-200">
+                        <h3 class="font-bold text-slate-800 text-xs uppercase">Detail: ${tanggal}</h3>
+                        <p class="text-[9px] text-slate-400 font-bold uppercase">${filteredData.length} Pengiriman</p>
+                    </div>
+                    <div class="space-y-3">
+                        ${filteredData.map(item => `
+                            <div class="bg-slate-50 p-4 rounded-2xl border border-slate-100">
+                                <span class="text-[8px] font-bold text-blue-600 uppercase">${item.ekspedisi}</span>
+                                <h4 class="font-bold text-slate-800 text-sm uppercase">${item.driver}</h4>
+                                <div class="flex items-center gap-1 mt-1 opacity-70">
+                                    <i class="fa-solid fa-location-dot text-[9px] text-red-500"></i>
+                                    <span class="text-[10px] text-slate-600 font-medium uppercase">${item.kota}</span>
+                                </div>
+                            </div>
+                        `).join('')}
+                    </div>
+                `;
+            }).getJadwalData();
+        }
+    </script>
+</body>
+</html>
